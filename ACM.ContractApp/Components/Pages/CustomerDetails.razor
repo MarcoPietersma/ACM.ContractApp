@@ -1,0 +1,13 @@
+﻿@page "/customers/{id:guid}"
+
+@inject AppDbContext Db
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+}
+
+<PageTitle>Customer detail</PageTitle>
+
+<h3>Customer detail</h3>
+
+<p>Hier komt de detailweergave van één klant en zijn contracten.</p>
