@@ -1,9 +1,118 @@
 ﻿@page "/customers"
 
 @inject AppDbContext Db
+@inject NavigationManager Nav
 
 <PageTitle>Customers</PageTitle>
 
 <h3>Customers</h3>
 
-<ContactList />
+<div class="row">
+    <div class="col-md-4">
+        <h5>Nieuwe klant</h5>
+        <EditForm Model="@newCustomer" OnValidSubmit="@CreateCustomer" FormName="newCustomerForm">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label class="form-label">Naam</label>
+                <InputText class="form-control" @bind-Value="newCustomer.Name" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <InputText class="form-control" @bind-Value="newCustomer.Email" />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox class="form-check-input" @bind-Value="newCustomer.IsActive" />
+                <label class="form-check-label">Actief</label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Opslaan</button>
+        </EditForm>
+    </div>
+
+    <div class="col-md-8">
+        <h5>Klanten</h5>
+        @if (customers.Count == 0)
+        {
+            <p>Er zijn nog geen klanten.</p>
+        }
+        else
+        {
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>Naam</th>
+                        <th>Email</th>
+                        <th>Actief</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in customers)
+                    {
+                        <tr>
+                            <td>@c.Name</td>
+                            <td>@c.Email</td>
+                            <td>@(c.IsActive ? "Ja" : "Nee")</td>
+                            <td>
+                                <button class="btn btn-link btn-sm" @onclick="@(() => NavigateToDetail(c.Id))">
+                                    Details
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private List<Customer> customers = new();
+    private CustomerInput newCustomer = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        customers = await Db.Customers
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+    }
+
+    private async Task CreateCustomer()
+    {
+        if (string.IsNullOrWhiteSpace(newCustomer.Name))
+            return;
+
+        var customer = new Customer
+        {
+            Id = Guid.NewGuid(),
+            Name = newCustomer.Name,
+            Email = newCustomer.Email,
+            IsActive = newCustomer.IsActive
+        };
+
+        Db.Customers.Add(customer);
+        await Db.SaveChangesAsync();
+
+        newCustomer = new CustomerInput();
+
+        customers = await Db.Customers
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+    }
+
+    private void NavigateToDetail(Guid id)
+    {
+        Nav.NavigateTo($"/customers/{id}");
+    }
+
+    private sealed class CustomerInput
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
+    }
+}

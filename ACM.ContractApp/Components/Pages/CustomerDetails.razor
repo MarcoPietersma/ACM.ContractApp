@@ -1,13 +1,148 @@
 ﻿@page "/customers/{id:guid}"
 
 @inject AppDbContext Db
+
 @code {
     [Parameter]
     public Guid Id { get; set; }
+
+    private Customer? customer;
+    private List<Contract> contracts = new();
+    private ContractInput newContract = new()
+    {
+        StartDate = DateOnly.FromDateTime(DateTime.Today),
+        EndDate = DateOnly.FromDateTime(DateTime.Today.AddYears(1))
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        customer = await Db.Customers
+            .Include(c => c.Contracts)
+            .FirstOrDefaultAsync(c => c.Id == Id);
+
+        if (customer != null)
+            contracts = customer.Contracts.OrderBy(c => c.StartDate).ToList();
+    }
+
+    private async Task CreateContract()
+    {
+        if (customer == null)
+            return;
+
+        var contract = new Contract
+        {
+            Id = Guid.NewGuid(),
+            CustomerId = customer.Id,
+            Description = newContract.Description,
+            StartDate = newContract.StartDate,
+            EndDate = newContract.EndDate,
+            MonthlyAmount = newContract.MonthlyAmount
+        };
+
+        Db.Contracts.Add(contract);
+        await Db.SaveChangesAsync();
+
+        await ReloadContracts();
+        newContract = new ContractInput
+        {
+            StartDate = DateOnly.FromDateTime(DateTime.Today),
+            EndDate = DateOnly.FromDateTime(DateTime.Today.AddYears(1))
+        };
+    }
+
+    private async Task ReloadContracts()
+    {
+        contracts = await Db.Contracts
+            .Where(c => c.CustomerId == Id)
+            .OrderBy(c => c.StartDate)
+            .ToListAsync();
+    }
+
+    private sealed class ContractInput
+    {
+        public string Description { get; set; } = string.Empty;
+        public DateOnly StartDate { get; set; }
+        public DateOnly EndDate { get; set; }
+        public decimal MonthlyAmount { get; set; }
+    }
 }
 
-<PageTitle>Customer detail</PageTitle>
+@if (customer is null)
+{
+    <PageTitle>Customer not found</PageTitle>
+    <h3>Customer niet gevonden</h3>
+}
+else
+{
+    <PageTitle>Customer detail</PageTitle>
 
-<h3>Customer detail</h3>
+    <h3>@customer.Name</h3>
+    <p>@customer.Email</p>
+    <p>Actief: @(customer.IsActive ? "Ja" : "Nee")</p>
 
-<p>Hier komt de detailweergave van één klant en zijn contracten.</p>
+    <hr />
+
+    <div class="row">
+        <div class="col-md-5">
+            <h5>Nieuw contract</h5>
+            <EditForm Model="@newContract" OnValidSubmit="@CreateContract" FormName="NewContract">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="mb-3">
+                    <label class="form-label">Omschrijving</label>
+                    <InputText class="form-control" @bind-Value="newContract.Description" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Startdatum</label>
+                    <InputDate DateFormat="yyyy-MM-dd" class="form-control" @bind-Value="newContract.StartDate" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Einddatum</label>
+                    <InputDate DateFormat="yyyy-MM-dd" class="form-control" @bind-Value="newContract.EndDate" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Maandbedrag</label>
+                    <InputNumber class="form-control" @bind-Value="newContract.MonthlyAmount" />
+                </div>
+
+                <button type="submit" class="btn btn-primary">Opslaan</button>
+            </EditForm>
+        </div>
+
+        <div class="col-md-7">
+            <h5>Contracten</h5>
+            @if (contracts.Count == 0)
+            {
+                <p>Er zijn nog geen contracten.</p>
+            }
+            else
+            {
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Omschrijving</th>
+                            <th>Start</th>
+                            <th>Einde</th>
+                            <th>Maandbedrag</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in contracts)
+                        {
+                            <tr>
+                                <td>@c.Description</td>
+                                <td>@c.StartDate</td>
+                                <td>@c.EndDate</td>
+                                <td>@c.MonthlyAmount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+}
